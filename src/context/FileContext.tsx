@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { FileItem } from '../types';
 
 interface FileContextType {
@@ -24,57 +24,10 @@ interface FileProviderProps {
 }
 
 export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // This function will fetch all file data concurrently
-    const fetchUserFiles = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Step 1: Fetch the list of file IDs for the user
-        const fileIdsResponse = await fetch(`http://localhost:2518/users/1/files`);
-        if (!fileIdsResponse.ok) {
-          throw new Error('Failed to fetch file IDs.');
-        }
-        const fileIds = await fileIdsResponse.json();
-
-        if (fileIds.length === 0) {
-          setFiles([]);
-          setIsLoading(false);
-          return;
-        }
-
-        // Step 2: Fetch the metadata for each file concurrently
-        // Create an array of promises for each file fetch
-        const filePromises = fileIds.map((id: string) =>
-          fetch(`http://localhost:2518/files/${id}/meta`)
-            .then(res => {
-              if (!res.ok) {
-                throw new Error(`Failed to fetch metadata for file ID: ${id}`);
-              }
-              return res.json();
-            })
-        );
-
-        // Wait for all promises to resolve
-        const fetchedFiles = await Promise.all(filePromises);
-
-        // Update the state with the fetched data
-        setFiles(fetchedFiles);
-
-      } catch (e) {
-        setError(e.message);
-        setFiles([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUserFiles();
-  }, []);
+  const [files, setFiles] = useState<FileItem[]>(() => {
+    const savedFiles = localStorage.getItem('userFiles');
+    return savedFiles ? JSON.parse(savedFiles) : [];
+  });
 
   const addFile = (file: FileItem) => {
     const newFiles = [...files, file];
