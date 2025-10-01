@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, Navigate } from 'react-router-dom';
+import { useParams, Link, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { File, FileText, Image, Video, Music, Archive, Download, ArrowLeft, User, Lock, Globe, AlertCircle, Mail } from 'lucide-react';
-import { FileItem } from '../types';
+import { FileItem, FileMeta } from '../types';
+import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 
 const PublicFileView: React.FC = () => {
-  const { username, filename } = useParams<{ username: string; filename: string }>();
-  const [file, setFile] = useState<FileItem | null>(null);
+  const { user } = useAuth();
+  const { username, fileId } = useParams<{ username: string; fileId: string }>();
+  const [file, setFile] = useState<FileMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
   const [userEmail, setUserEmail] = useState('');
@@ -14,56 +17,52 @@ const PublicFileView: React.FC = () => {
   const [emailError, setEmailError] = useState('');
 
   useEffect(() => {
-    const loadFile = () => {
+    const loadFile = async () => {
       setLoading(true);
       
       // Check if this is the current user's files
       const savedUser = localStorage.getItem('user');
       const currentUser = savedUser ? JSON.parse(savedUser) : null;
+
+      console.log("file id:",fileId);
+      console.log("user email:",user?.email);
       
-      if (currentUser && currentUser.username === username) {
-        // Load current user's files
-        const savedFiles = localStorage.getItem('userFiles');
-        const userFiles: FileItem[] = savedFiles ? JSON.parse(savedFiles) : [];
-        const foundFile = userFiles.find(f => f.name === decodeURIComponent(filename || ''));
-        
-        if (foundFile) {
-          setFile(foundFile);
-          // Check access for private files
-          if (foundFile.privacy === 'private') {
-            // For demo, assume current user always has access to their own files
+
+      const access=await axios.get<boolean>(`http://localhost:2518/files/access/${fileId}`,{ params: { mail: user?.email } });
+      if(access.data){
+        setAccessDenied(false);
+        console.log("Access granted", access);
+
+      }else{
+        setAccessDenied(true);
+      }
+
+      axios.get<FileMeta>(`http://localhost:2518/files/${fileId}/meta`)
+        .then(response => {
+          setFile(response.data);
+          // If file is private and user is not the owner, require email
+          if (!response.data.public && (!currentUser || currentUser.username !== username)) {
+            setAccessDenied(true);
+          } else {
             setAccessDenied(false);
           }
-        }
-      } else {
-        // For demo purposes, create mock files for other users
-        if (username && filename) {
-          const decodedFilename = decodeURIComponent(filename);
-          const mockFile: FileItem = {
-            id: 'demo-' + decodedFilename,
-            name: decodedFilename,
-            size: decodedFilename.includes('presentation') ? 2048000 : 15728640,
-            type: decodedFilename.includes('.pdf') ? 'application/pdf' : 'application/zip',
-            uploadDate: new Date('2024-01-15'),
-            shareLink: `${window.location.origin}/${username}/files/${filename}`,
-            privacy: decodedFilename.includes('private') ? 'private' : 'public',
-            allowedEmails: decodedFilename.includes('private') ? ['demo@example.com', 'test@example.com'] : undefined
-          };
-          
-          setFile(mockFile);
-          
-          // Check access for private files
-          if (mockFile.privacy === 'private') {
-            setAccessDenied(true);
-          }
-        }
-      }
-      
+        })
+        .catch(error => {
+          console.error(error);
+          setFile(null);
+        });
+        console.log(file);
+
       setTimeout(() => setLoading(false), 800);
     };
 
     loadFile();
-  }, [username, filename]);
+  }, [username, fileId]);
+
+  function getFileSizeFromBase64(base64: string): number {
+    const padding = (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+    return Math.floor(base64.length * 3 / 4) - padding; // in bytes
+  }
 
   const getFileIcon = (type: string) => {
     if (type.startsWith('image/')) return <Image className="h-16 w-16 text-blue-600" />;
@@ -96,13 +95,13 @@ const PublicFileView: React.FC = () => {
     // Mock download functionality
     const link = document.createElement('a');
     link.href = '#';
-    link.download = file?.name || 'file';
+    link.download = file?.fileName || 'file';
     link.click();
     
     // Show download notification
     const notification = document.createElement('div');
     notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50';
-    notification.textContent = `Downloading ${file?.name}...`;
+    notification.textContent = `Downloading ${file?.fileName}...`;
     document.body.appendChild(notification);
     
     setTimeout(() => {
@@ -158,7 +157,7 @@ const PublicFileView: React.FC = () => {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">File Not Found</h1>
           <p className="text-gray-600 mb-6">
-            The file "{filename}" doesn't exist or is no longer available.
+            The file "{fileId}" doesn't exist or is no longer available.
           </p>
           <Link
             to={`/${username}/files`}
@@ -173,7 +172,7 @@ const PublicFileView: React.FC = () => {
   }
 
   // Show access denied for private files
-  if (accessDenied && file.privacy === 'private' && !emailSubmitted) {
+  if (accessDenied && file.public && !emailSubmitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 flex items-center justify-center p-4">
         <motion.div
@@ -275,13 +274,13 @@ const PublicFileView: React.FC = () => {
           className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 mb-8"
         >
           <div className="text-center mb-8">
-            {getFileIcon(file.type)}
-            <h2 className="text-3xl font-bold text-gray-900 mt-4 mb-2">{file.name}</h2>
+            {getFileIcon(file.fileType)}
+            <h2 className="text-3xl font-bold text-gray-900 mt-4 mb-2">{file.fileName}</h2>
             <div className="flex items-center justify-center space-x-4 text-gray-600">
-              <span>{formatFileSize(file.size)}</span>
+              <span>{formatFileSize(getFileSizeFromBase64(file.data))}</span>
               <span>•</span>
               <div className="flex items-center space-x-1">
-                {file.privacy === 'private' ? (
+                {file.public === false ? (
                   <>
                     <Lock className="h-4 w-4 text-red-600" />
                     <span className="text-red-600">Private</span>
@@ -302,15 +301,15 @@ const PublicFileView: React.FC = () => {
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex justify-between">
                   <span>Type:</span>
-                  <span className="font-medium">{file.type}</span>
+                  <span className="font-medium">{file.fileType}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Size:</span>
-                  <span className="font-medium">{formatFileSize(file.size)}</span>
+                  <span className="font-medium">{formatFileSize(getFileSizeFromBase64(file.data))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Uploaded:</span>
-                  <span className="font-medium">{formatDate(file.uploadDate)}</span>
+                  <span className="font-medium">{formatDate(new Date(file.date))}</span>
                 </div>
               </div>
             </div>
@@ -319,7 +318,7 @@ const PublicFileView: React.FC = () => {
               <h3 className="font-semibold text-gray-900 mb-2">Access Information</h3>
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex items-center space-x-2">
-                  {file.privacy === 'private' ? (
+                  {file.public === false ? (
                     <>
                       <Lock className="h-4 w-4 text-red-600" />
                       <span>Private file</span>
@@ -331,7 +330,7 @@ const PublicFileView: React.FC = () => {
                     </>
                   )}
                 </div>
-                {file.privacy === 'private' && file.allowedEmails && (
+                {file.public === false && file.allowedEmails && (
                   <div className="text-xs">
                     <span>Authorized users: {file.allowedEmails.length}</span>
                   </div>
@@ -386,7 +385,7 @@ const PublicFileView: React.FC = () => {
             {window.location.href}
           </code>
           <p className="text-xs text-blue-600 mt-2">
-            {file.privacy === 'private' 
+            {file.public === false
               ? 'This URL is only accessible to authorized users'
               : 'This URL can be shared with anyone'
             }

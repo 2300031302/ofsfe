@@ -5,6 +5,7 @@ import { ContactForm, ValidationErrors } from '../types';
 import { validateEmail, validateName, validateMessage } from '../utils/validation';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin } from '../context/AdminContext';
+import { form } from 'framer-motion/client';
 
 const Contact: React.FC = () => {
   const [formData, setFormData] = useState<ContactForm>({
@@ -68,10 +69,6 @@ const Contact: React.FC = () => {
     const messageError = validateMessage(formData.message);
     if (messageError) newErrors.message = messageError;
     
-    if (!subject.trim()) {
-      newErrors.message = 'Subject is required';
-    }
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -105,8 +102,9 @@ const Contact: React.FC = () => {
     formdata.append("name", formData.name);
     formdata.append("contact", formData.email);
     formdata.append("message", formData.message);
+    formdata.append("viewed", false.toString());
     console.log(formdata);
-    const response = await fetch('https://localhost:2518/messages/send', {
+    const response = await fetch('http://localhost:2518/messages/send', {
       method: 'POST',
       body: formdata
     });
@@ -152,49 +150,10 @@ const Contact: React.FC = () => {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100"
+            className="bg-white rounded-3xl shadow-xl p-6 border border-gray-100"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Send us a message</h2>
-            
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-2">
-                  Subject *
-                </label>
-                <div className="relative">
-                  <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    id="subject"
-                    value={subject}
-                    onChange={(e) => {
-                      setSubject(e.target.value);
-                      if (errors.message) setErrors(prev => ({ ...prev, message: undefined }));
-                    }}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
-                      errors.message && !formData.message ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter message subject"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-2">
-                  Priority Level
-                </label>
-                <select
-                  id="priority"
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all bg-white"
-                >
-                  <option value="low">Low Priority</option>
-                  <option value="medium">Medium Priority</option>
-                  <option value="high">High Priority</option>
-                </select>
-              </div>
-
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                   Your Name *

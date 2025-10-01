@@ -1,84 +1,63 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { File, FileText, Image, Video, Music, Archive, Globe, Lock, User, ArrowLeft, Search, Calendar, HardDrive } from 'lucide-react';
-import { FileItem } from '../types';
+import { FileItem, FileMeta } from '../types';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const PublicFiles: React.FC = () => {
+  const { user } = useAuth();
   const { username } = useParams<{ username: string }>();
+  const navigate = useNavigate();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [userExists, setUserExists] = useState(true);
+  const [tile, setTile] = useState<FileMeta[]>([]);
+  const [publicFiles, setPublicFiles] = useState(0);
 
   useEffect(() => {
-    // Simulate loading and fetch user's public files
-    const loadUserFiles = () => {
+    const loadUserFiles = async () => {
       setLoading(true);
-      
-      // Check if this is the current user's files
-      const savedUser = localStorage.getItem('user');
-      const currentUser = savedUser ? JSON.parse(savedUser) : null;
-      
-      if (currentUser && currentUser.username === username) {
-        // Load current user's files
-        const savedFiles = localStorage.getItem('userFiles');
-        const userFiles = savedFiles ? JSON.parse(savedFiles) : [];
-        setFiles(userFiles.filter((file: FileItem) => file.privacy === 'public'));
-        setUserExists(true);
-      } else {
-        // For demo purposes, show some mock public files for other users
-        if (username && username !== 'anonymous') {
-          const mockFiles: FileItem[] = [
-            {
-              id: 'demo1',
-              name: 'presentation.pdf',
-              size: 2048000,
-              type: 'application/pdf',
-              uploadDate: new Date('2024-01-15'),
-              shareLink: `${window.location.origin}/${username}/files/presentation.pdf`,
-              privacy: 'public'
-            },
-            {
-              id: 'demo2',
-              name: 'vacation-photos.zip',
-              size: 15728640,
-              type: 'application/zip',
-              uploadDate: new Date('2024-01-10'),
-              shareLink: `${window.location.origin}/${username}/files/vacation-photos.zip`,
-              privacy: 'public'
-            },
-            {
-              id: 'demo3',
-              name: 'project-demo.mp4',
-              size: 52428800,
-              type: 'video/mp4',
-              uploadDate: new Date('2024-01-12'),
-              shareLink: `${window.location.origin}/${username}/files/project-demo.mp4`,
-              privacy: 'public'
-            },
-            {
-              id: 'demo4',
-              name: 'resume.pdf',
-              size: 1024000,
-              type: 'application/pdf',
-              uploadDate: new Date('2024-01-08'),
-              shareLink: `${window.location.origin}/${username}/files/resume.pdf`,
-              privacy: 'public'
-            }
-          ];
-          setFiles(mockFiles);
-          setUserExists(true);
-        } else {
+
+      try {
+        const savedUser = localStorage.getItem('user');
+        const currentUser = savedUser ? JSON.parse(savedUser) : null;
+        if (!user?.email) {
           setUserExists(false);
+
+          console.warn("No user found in localStorage");
+          setLoading(false);
+          return;
         }
+        setUserExists(true);
+
+        const res = await axios.get<FileMeta[]>(
+          `http://localhost:2518/files/username/${username}/files`,
+          { params: { mail: user?.email } }
+        );
+
+        // ✅ update state with files
+        console.log(res.data);
+
+        setTile(res.data);
+        setPublicFiles(res.data.filter(file => file.public).length);
+      } catch (err) {
+        console.error("Error fetching user files:", err);
+      } finally {
+        setLoading(false);
       }
-      
-      setTimeout(() => setLoading(false), 800);
     };
 
     loadUserFiles();
   }, [username]);
+
+  function getFileSizeFromBase64(base64: string): number {
+    const padding = (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+    return Math.floor(base64.length * 3 / 4) - padding; // in bytes
+  }
+
 
   const getFileIcon = (type: string) => {
     if (type.startsWith('image/')) return <Image className="h-8 w-8 text-blue-600" />;
@@ -105,11 +84,11 @@ const PublicFiles: React.FC = () => {
     });
   };
 
-  const filteredFiles = files.filter(file =>
-    file.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredFiles = tile.filter(file =>
+    file.fileName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalSize = files.reduce((acc, file) => acc + file.size, 0);
+  const totalSize = tile.reduce((acc, file) => acc + getFileSizeFromBase64(file.data), 0);
 
   if (loading) {
     return (
@@ -172,13 +151,19 @@ const PublicFiles: React.FC = () => {
           <p className="text-sm text-blue-600 mt-2">
             Found via global search • Public files only
           </p>
-          
-          {files.length > 0 && (
+
+          {tile.length > 0 && (
             <div className="mt-6 flex flex-wrap justify-center gap-4 text-sm text-gray-600">
               <span className="bg-white px-4 py-2 rounded-full shadow-sm flex items-center space-x-2">
                 <Globe className="h-4 w-4 text-green-600" />
-                <span>{files.length} public file{files.length !== 1 ? 's' : ''}</span>
+                <span>{publicFiles} public file{publicFiles !== 1 ? 's' : ''}</span>
               </span>
+              {tile.length !== publicFiles && (
+                <span className="bg-white px-4 py-2 rounded-full shadow-sm flex items-center space-x-2">
+                  <Lock className="h-4 w-4 text-red-600" />
+                  <span>{tile.length - publicFiles} private file{tile.length - publicFiles !== 1 ? 's' : ''}</span>
+                </span>
+              )}
               <span className="bg-white px-4 py-2 rounded-full shadow-sm flex items-center space-x-2">
                 <HardDrive className="h-4 w-4 text-blue-600" />
                 <span>{formatFileSize(totalSize)} total</span>
@@ -188,7 +173,7 @@ const PublicFiles: React.FC = () => {
         </motion.div>
 
         {/* Search */}
-        {files.length > 0 && (
+        {tile.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -223,23 +208,22 @@ const PublicFiles: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
               >
-                <Link
-                  to={`/${username}/files/${encodeURIComponent(file.name)}`}
+                <Link to={`/${username}/files/${file.id}`}
                   className="block bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 p-6 border border-gray-100 group"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      {getFileIcon(file.type)}
+                      {getFileIcon(file.fileType)}
                       <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors" title={file.name}>
-                          {file.name}
+                        <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors" title={file.fileName}>
+                          {file.fileName}
                         </h3>
-                        <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                        <p className="text-xs text-gray-500">{formatFileSize(getFileSizeFromBase64(file.data))}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className="p-1 rounded-full bg-green-100" title="Public file">
-                        <Globe className="h-3 w-3 text-green-600" />
+                      <div className={`p-1 rounded-full ${file.public ? 'bg-green-100' : 'bg-red-100'}`} title={file.public ? "Public file" : "Private file"}>
+                        {file.public ? <Globe className="h-3 w-3 text-green-600" /> : <Lock className="h-3 w-3 text-red-600" />}
                       </div>
                     </div>
                   </div>
@@ -247,7 +231,7 @@ const PublicFiles: React.FC = () => {
                   <div className="mb-4">
                     <div className="flex items-center space-x-2 text-xs text-gray-500">
                       <Calendar className="h-3 w-3" />
-                      <span>Uploaded {formatDate(file.uploadDate)}</span>
+                      <span>Uploaded {formatDate(new Date(file.date))}</span>
                     </div>
                   </div>
 
@@ -278,7 +262,7 @@ const PublicFiles: React.FC = () => {
               {searchTerm ? 'No files found' : 'No public files'}
             </h3>
             <p className="text-gray-600 mb-8 max-w-md mx-auto">
-              {searchTerm 
+              {searchTerm
                 ? `No files match "${searchTerm}". Try adjusting your search terms.`
                 : `${username} hasn't shared any public files yet, or this user doesn't exist.`
               }

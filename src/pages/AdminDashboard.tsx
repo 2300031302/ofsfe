@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAdmin } from '../context/AdminContext';
 import { Users, Files, BarChart3, Settings, Trash2, Eye, Download, Lock, Globe, Search, Filter, Mail, Clock, CheckCircle, EyeOff, User as UserIcon } from 'lucide-react';
-import { User as UserType, FileItem, ContactMessage } from '../types';
+import { User as UserType, FileItem, FileMeta,  ContactForm } from '../types';
 
 interface Message { // This interface is for the mock messages, not the UserType from types.ts
   id: number;
@@ -15,44 +15,60 @@ interface Message { // This interface is for the mock messages, not the UserType
 
 
 const AdminDashboard: React.FC = () => {
-  const { users, allFiles, userStats, fileStats, deleteUser, deleteFile, getUserFiles } = useAdmin();
+  const { users, messages,setMessages, allFiles, userStats,  fileStats, deleteUser, deleteFile, getUserFiles,markMessageAsRead } = useAdmin();
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'files' | 'messages'>('overview');
   const [searchTerm, setSearchTerm] = useState(''); // This searchTerm is for the current tab's search
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
-  const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      username: "john_doe",
-      name: "John Doe",
-      contact: "john@example.com",
-      message: "Hey, could you check my last upload?",
-      viewed: false,
-    },
-    {
-      id: 2,
-      username: "alice123",
-      name: "Alice Johnson",
-      contact: "alice@example.com",
-      message: "I have an issue with file permissions.",
-      viewed: true,
-    },
-    {
-      id: 3,
-      username: "rajkumar",
-      name: "Raj Kumar",
-      contact: "raj@example.com",
-      message: "Thank you for your quick support!",
-      viewed: false,
-    },
-  ]);
+  const [selectedMessage, setSelectedMessage] = useState<ContactForm | null>(null);
+  // const [umessages, setMessages] = useState(messages);
+  const [userFilesCountMap, setUserFilesCountMap] = React.useState<Record<number, number | null>>({});
+  console.log("messages in admin dashboard:", messages);
+  // console.log("umessages in admin dashboard:", umessages);
+  // setMessages(messages);
 
-  const filteredMessages: Message[] = messages.filter((msg) =>
+
+  React.useEffect(() => {
+    let mounted = true;
+    async function fetchCounts() {
+      try {
+        // use users or filteredUsers depending on whether counts should be for all users or only filtered set
+        const targetUsers = users; // or filteredUsers
+        const results = await Promise.all(
+          targetUsers.map(u =>
+            getUserFiles(u.id)
+              .then(files => files.length)
+              .catch(() => null)
+          )
+        );
+
+        if (!mounted) return;
+        const map: Record<number, number | null> = {};
+        targetUsers.forEach((u, i) => {
+          map[Number(u.id)] = results[i];
+        });
+        setUserFilesCountMap(map);
+      } catch (err) {
+        if (mounted) {
+          // handle error globally if required
+        }
+      }
+    }
+    fetchCounts();
+    return () => { mounted = false; };
+  }, [users /* or filteredUsers if you want refresh on filter change */]);
+
+  function getFileSizeFromBase64(base64: string): number {
+    const padding = (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+    return Math.floor(base64.length * 3 / 4) - padding; // in bytes
+  }
+
+  const filteredMessages: ContactForm[] = messages.filter((msg) =>
     msg.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // 🔹 Mark as viewed
   const handleViewMessage = (id: number): void => {
+    markMessageAsRead(id.toString());
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === id ? { ...msg, viewed: true } : msg
@@ -90,6 +106,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleDeleteFile = (fileId: string, fileName: string) => {
+
     if (confirm(`Are you sure you want to delete file "${fileName}"?`)) {
       deleteFile(fileId);
     }
@@ -121,7 +138,7 @@ const AdminDashboard: React.FC = () => {
   );
 
   const filteredFiles = allFiles.filter(file =>
-    file.name.toLowerCase().includes(searchTerm.toLowerCase())
+    file.fileName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const tabs = [
@@ -280,7 +297,11 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div className="divide-y divide-gray-200">
                 {filteredUsers.map((user) => {
-                  const userFiles = getUserFiles(user.id);
+                  const userFilesCount = userFilesCountMap[Number(user.id)] ?? null;
+                  console.log("user id:", user.id);
+
+                  
+
                   return (
                     <div key={user.id} className="p-6 hover:bg-gray-50 transition-colors">
                       <div className="flex items-center justify-between">
@@ -291,7 +312,9 @@ const AdminDashboard: React.FC = () => {
                           <div>
                             <h4 className="font-semibold text-gray-900">{user.username}</h4>
                             <p className="text-sm text-gray-600">{user.email}</p>
-                            <p className="text-xs text-gray-500">{userFiles.length} files uploaded</p>
+                            <p className="text-xs text-gray-500">
+                              {userFilesCount !== null ? `${userFilesCount} files uploaded` : 'Loading...'}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -354,14 +377,14 @@ const AdminDashboard: React.FC = () => {
                           <Files className="h-6 w-6 text-gray-600" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h4 className="font-semibold text-gray-900 truncate">{file.name}</h4>
+                          <h4 className="font-semibold text-gray-900 truncate">{file.fileName}</h4>
                           <div className="flex items-center space-x-4 text-sm text-gray-600">
-                            <span>{formatFileSize(file.size)}</span>
+                            <span>{formatFileSize(getFileSizeFromBase64(file.data))}</span>
                             <span>•</span>
-                            <span>{formatDate(file.uploadDate)}</span>
+                            <span>{formatDate(new Date(file.date))}</span>
                             <span>•</span>
                             <div className="flex items-center space-x-1">
-                              {file.privacy === 'private' ? (
+                              {file.public === false ? (
                                 <>
                                   <Lock className="h-3 w-3 text-red-600" />
                                   <span className="text-red-600">Private</span>
@@ -374,7 +397,7 @@ const AdminDashboard: React.FC = () => {
                               )}
                             </div>
                           </div>
-                          {file.privacy === 'private' && file.allowedEmails && (
+                          {file.public === false && file.allowedEmails && (
                             <p className="text-xs text-gray-500 mt-1">
                               Allowed: {file.allowedEmails.join(', ')}
                             </p>
@@ -383,14 +406,14 @@ const AdminDashboard: React.FC = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => window.open(file.shareLink, '_blank')}
+                          onClick={() => window.open(`http://localhost:2518/files/${file.id}?mail=admin@gmail.com"`, '_blank')}
                           className="bg-green-100 text-green-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors flex items-center space-x-1"
                         >
                           <Download className="h-4 w-4" />
                           <span>View</span>
                         </button>
                         <button
-                          onClick={() => handleDeleteFile(file.id, file.name)}
+                          onClick={() => handleDeleteFile(file.id.toString(), file.fileName)}
                           className="bg-red-100 text-red-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors flex items-center space-x-1"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -512,51 +535,14 @@ const AdminDashboard: React.FC = () => {
 
         {/* User Files Modal */}
         {selectedUser && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {selectedUser.username}'s Files
-                </h3>
-                <button
-                  onClick={() => setSelectedUser(null)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {getUserFiles(selectedUser.id).map((file) => (
-                  <div key={file.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <h4 className="font-medium text-gray-900">{file.name}</h4>
-                      <p className="text-sm text-gray-600">
-                        {formatFileSize(file.size)} • {formatDate(file.uploadDate)}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {file.privacy === 'private' ? (
-                        <Lock className="h-4 w-4 text-red-600" />
-                      ) : (
-                        <Globe className="h-4 w-4 text-green-600" />
-                      )}
-                      <button
-                        onClick={() => handleDeleteFile(file.id, file.name)}
-                        className="text-red-600 hover:text-red-800 transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
+          <UserFilesModal
+            selectedUser={selectedUser}
+            onClose={() => setSelectedUser(null)}
+            getUserFiles={getUserFiles}
+            formatFileSize={formatFileSize}
+            formatDate={formatDate}
+            handleDeleteFile={handleDeleteFile}
+          />
         )}
 
         {/* Message Details Modal */}
@@ -573,8 +559,8 @@ const AdminDashboard: React.FC = () => {
                     <Mail className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{selectedMessage.subject}</h3>
-                    <p className="text-sm text-gray-600">From: {selectedMessage.username} ({selectedMessage.email})</p>
+                    <h3 className="text-lg font-semibold text-gray-900">{selectedMessage.message}</h3>
+                    <p className="text-sm text-gray-600">From: {selectedMessage.username} ({selectedMessage.contact})</p>
                   </div>
                 </div>
                 <button
@@ -588,14 +574,10 @@ const AdminDashboard: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div className="flex items-center space-x-4">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(selectedMessage.priority)}`}>
-                      {selectedMessage.priority.toUpperCase()} PRIORITY
-                    </span>
                     <div className="flex items-center space-x-2 text-sm text-gray-600">
                       <Clock className="h-4 w-4" />
-                      <span>{formatTimestamp(selectedMessage.timestamp)}</span>
                     </div>
-                    {!selectedMessage.isRead && (
+                    {!selectedMessage.viewed && (
                       <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
                         UNREAD
                       </span>
@@ -609,11 +591,11 @@ const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div className="flex space-x-3">
-                  {!selectedMessage.isRead && (
+                  {!selectedMessage.viewed && (
                     <button
                       onClick={() => {
                         handleMarkAsRead(selectedMessage.id);
-                        setSelectedMessage({ ...selectedMessage, isRead: true });
+                        setSelectedMessage({ ...selectedMessage, viewed: true });
                       }}
                       className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center space-x-2"
                     >
@@ -623,7 +605,7 @@ const AdminDashboard: React.FC = () => {
                   )}
                   <button
                     onClick={() => {
-                      handleDeleteMessage(selectedMessage.id, selectedMessage.subject);
+                      handleDeleteMessage(selectedMessage.id);
                       setSelectedMessage(null);
                     }}
                     className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center space-x-2"
@@ -642,3 +624,94 @@ const AdminDashboard: React.FC = () => {
 };
 
 export default AdminDashboard;
+interface UserFilesModalProps {
+  selectedUser: UserType;
+  onClose: () => void;
+  getUserFiles: (userId: string) => Promise<FileMeta[]>;
+  formatFileSize: (bytes: number) => string;
+  formatDate: (date: Date) => string;
+  handleDeleteFile: (fileId: string, fileName: string) => void;
+}
+
+const UserFilesModal: React.FC<UserFilesModalProps> = ({
+  selectedUser,
+  onClose,
+  getUserFiles,
+  formatFileSize,
+  formatDate,
+  handleDeleteFile,
+}) => {
+  const [files, setFiles] = React.useState<FileMeta[] | null>(null);
+
+  function getFileSizeFromBase64(base64: string): number {
+    const padding = (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+    return Math.floor(base64.length * 3 / 4) - padding; // in bytes
+  }
+
+  React.useEffect(() => {
+    let isMounted = true;
+    setFiles(null); // reset while loading
+    getUserFiles(selectedUser.id).then((f) => {
+      if (isMounted) setFiles(f);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedUser.id, getUserFiles]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {selectedUser.username}'s Files
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {files === null ? (
+            <div className="text-center text-gray-500">Loading...</div>
+          ) : files.length === 0 ? (
+            <div className="text-center text-gray-500">No files found.</div>
+          ) : (
+            files.map((file) => (
+              <div key={file.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <h4 className="font-medium text-gray-900">{file.fileName}</h4>
+                  <p className="text-sm text-gray-600">
+                    {formatFileSize(getFileSizeFromBase64(file.data))} • {formatDate(new Date(file.date))}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {file.public !== true ? (
+                    <Lock className="h-4 w-4 text-red-600" />
+                  ) : (
+                    <Globe className="h-4 w-4 text-green-600" />
+                  )}
+                  <button
+                    onClick={() => handleDeleteFile(file.id.toString(), file.fileName)}
+                    className="text-red-600 hover:text-red-800 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+// export default AdminDashboard;

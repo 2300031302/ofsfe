@@ -4,41 +4,85 @@ import { Search, Filter, Copy, Check, Trash2, Upload, SortAsc, SortDesc, Lock, G
 import { useFiles } from '../context/FileContext';
 import { useNavigate } from 'react-router-dom';
 import FileCard from '../components/FileCard';
+import axios from 'axios';
+import { FileItem, FileMeta } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { title } from 'framer-motion/client';
 
 const MyFiles: React.FC = () => {
+  const { user } = useAuth();
   const { files, deleteFile, getUserFilesUrl } = useFiles();
+  // const tile: FileMeta[] = [];
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'size'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [privacyFilter, setPrivacyFilter] = useState<'all' | 'public' | 'private'>('all');
+  const [tile, setTile] = useState<FileMeta[]>([]);
 
-  const filteredFiles = files
-    .filter(file => 
-      file.name.toLowerCase().includes(searchTerm.toLowerCase())
+  React.useEffect(() => {
+    if (user?.id) {
+      fetchUserFiles(user.id);
+    }
+  }, [user?.id]);
+
+
+  const fetchUserFiles = async (userId: string) => {
+    try {
+      const res = await axios.get<[]>(`http://localhost:2518/users/${userId}/files`);
+      const fetchedFiles: FileMeta[] = [];
+
+      for (const file of res.data) {
+        try {
+          const response = await axios.get<FileMeta>(`http://localhost:2518/files/${file}/meta`);
+          fetchedFiles.push(response.data);
+          // Ensure the id is set
+        } catch (error) {
+          console.error(`Error fetching metadata for file ${file}:`, error);
+        }
+      }
+
+      setTile(fetchedFiles); // ✅ update state
+    } catch (error) {
+      console.error("Error fetching user files:", error);
+    }
+  };
+
+  function getFileSizeFromBase64(base64: string): number {
+    const padding = (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+    return Math.floor(base64.length * 3 / 4) - padding; // in bytes
+  }
+
+  // fetchUserFiles(user?.id || '');
+
+
+  const filteredFiles = tile
+    .filter(file =>
+      file.fileName.toLowerCase().includes(searchTerm.toLowerCase())
     )
     .filter(file => {
       if (privacyFilter === 'all') return true;
-      return file.privacy === privacyFilter;
+      return file.public === (privacyFilter === 'public');
     })
     .sort((a, b) => {
       let comparison = 0;
       switch (sortBy) {
         case 'name':
-          comparison = a.name.localeCompare(b.name);
+          comparison = a.fileName.localeCompare(b.fileName);
           break;
         case 'date':
-          comparison = new Date(a.uploadDate).getTime() - new Date(b.uploadDate).getTime();
+          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
           break;
         case 'size':
-          comparison = a.size - b.size;
+          comparison = getFileSizeFromBase64(a.data) - getFileSizeFromBase64(b.data);
           break;
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
   const handleCopyLink = async (link: string) => {
+    if (user?.id) fetchUserFiles(user.id); // Example userId
     console.log('files:', files);
     console.log('filteredFiles:', filteredFiles);
     try {
@@ -59,9 +103,19 @@ const MyFiles: React.FC = () => {
     }
   };
 
-  const handleDeleteFile = (id: string) => {
+  const handleDeleteFile = async (id: string) => {
     if (confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
-      deleteFile(id);
+      const y= await axios.delete(`http://localhost:2518/users/deletefile/${id}`);
+      if(y.data==true){
+        const res = await axios.delete(`http://localhost:2518/files/${id}?email=${user?.email}`);
+
+        if(res.status===200){
+          alert('File deleted successfully');
+          setTile(prev => prev.filter(f => f.id !== new Number(id))) ;
+        }
+      }else
+        alert('Error deleting file');
+      
     }
   };
 
@@ -193,6 +247,7 @@ const MyFiles: React.FC = () => {
 
         {/* Files Grid */}
         {filteredFiles.length > 0 ? (
+
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -232,7 +287,7 @@ const MyFiles: React.FC = () => {
               {searchTerm ? 'No files found' : 'No files uploaded yet'}
             </h3>
             <p className="text-gray-600 mb-8 max-w-md mx-auto">
-              {searchTerm 
+              {searchTerm
                 ? `No files match "${searchTerm}". Try adjusting your search terms.`
                 : 'Start by uploading your first file to share it with others.'
               }

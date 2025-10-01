@@ -6,8 +6,18 @@ export interface User {
 
 
 // types/FileMeta.ts
-export // Define the complete type for a FileItem
-interface FileItem {
+export interface FileMeta {
+  id: number;
+  fileName: string;
+  fileType: string;
+  date: string;
+  data: string; // Base64 encoded string
+  public: boolean;
+  allowedEmails?: string[];
+}
+
+// Define the complete type for a FileItem
+export interface FileItem {
   id: string;
   name: string;
   privacy: 'public' | 'private';
@@ -37,13 +47,16 @@ interface FileItem {
 // }
 
 export interface ContactForm {
+  id: number;
+  username: string;
   name: string;
-  email: string;
+  contact: string;
   message: string;
+  viewed: boolean;
 }
 
 export interface ValidationErrors {
-  email?: string;
+  contact?: string;
   password?: string;
   username?: string;
   name?: string;

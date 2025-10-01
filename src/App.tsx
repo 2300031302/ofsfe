@@ -108,7 +108,7 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           } />
           <Route path="/:username/files" element={<PublicFiles />} />
-          <Route path="/:username/files/:filename" element={<PublicFileView />} />
+          <Route path="/:username/files/:fileId" element={<PublicFileView />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </main>
