@@ -406,7 +406,7 @@ const AdminDashboard: React.FC = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => window.open(`http://localhost:2518/files/${file.id}?mail=admin@gmail.com"`, '_blank')}
+                          onClick={() => window.open(`https://ofsbe-production.up.railway.app/files/${file.id}?mail=admin@gmail.com"`, '_blank')}
                           className="bg-green-100 text-green-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors flex items-center space-x-1"
                         >
                           <Download className="h-4 w-4" />
