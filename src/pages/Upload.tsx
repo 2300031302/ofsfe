@@ -7,7 +7,7 @@ import UploadModal from '../components/UploadModal';
 import { validateEmail } from '../utils/validation';
 import { useAuth } from '../context/AuthContext';
 
-const API_URL = "http://localhost:2518/files";
+const API_URL = "https://ofsbe-production.up.railway.app/files";
 
 
 const Upload: React.FC = () => {
@@ -113,14 +113,14 @@ const Upload: React.FC = () => {
       console.log("Uploading file:", privacy.toString());
       console.log("updated mails", allowedEmails);
       try {
-        const response = await fetch("http://localhost:2518/files/upload", {
+        const response = await fetch("https://ofsbe-production.up.railway.app/files/upload", {
         method: "POST",
         body: formData,
         });
         const responseText = await response.text(); // backend message like "File uploaded successfully"
         console.log("reponse:", responseText);
         console.log("user id:", user?.id);
-        const response1 = await fetch(`http://localhost:2518/users/${user?.id}/add-file/${responseText}`, {
+        const response1 = await fetch(`https://ofsbe-production.up.railway.app/users/${user?.id}/add-file/${responseText}`, {
           method: "POST"
         });
         console.log("Response from file upload:", response1.body);
