@@ -30,7 +30,7 @@ const MyFiles: React.FC = () => {
 
   const fetchUserFiles = async (userId: string) => {
     try {
-      const res = await axios.get<[]>(`http://localhost:2518/users/${userId}/files`);
+      const res = await axios.get<[]>(`https://ofsbe-production.up.railway.app/users/${userId}/files`);
       const fetchedFiles: FileMeta[] = [];
 
       for (const file of res.data) {
@@ -105,9 +105,9 @@ const MyFiles: React.FC = () => {
 
   const handleDeleteFile = async (id: string) => {
     if (confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
-      const y= await axios.delete(`http://localhost:2518/users/deletefile/${id}`);
+      const y= await axios.delete(`https://ofsbe-production.up.railway.app/users/deletefile/${id}`);
       if(y.data==true){
-        const res = await axios.delete(`http://localhost:2518/files/${id}?email=${user?.email}`);
+        const res = await axios.delete(`https://ofsbe-production.up.railway.app/files/${id}?email=${user?.email}`);
 
         if(res.status===200){
           alert('File deleted successfully');
