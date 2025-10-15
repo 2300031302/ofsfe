@@ -44,7 +44,7 @@ const FileCard: React.FC<FileCardProps> = ({ file, onCopyLink, onDelete }) => {
 
   const handleDownload = () => {
     // Mock download functionality
-    const url = `http://localhost:2518/files/${file.id}?mail=${user?.email}`;
+    const url = `https://ofsbe-production.up.railway.app/files/${file.id}?mail=${user?.email}`;
 
 
     
