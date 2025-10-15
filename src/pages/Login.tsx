@@ -178,11 +178,6 @@ const Login: React.FC = () => {
                 Admin Login
               </Link>
             </p>
-            <p className="text-gray-600 mt-2">
-              <Link to="/admin/login" className="text-red-600 font-medium hover:text-red-700 transition-colors">
-                Admin Login
-              </Link>
-            </p>
           </div>
         </motion.div>
       </motion.div>
