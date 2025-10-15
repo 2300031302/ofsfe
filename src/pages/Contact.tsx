@@ -104,7 +104,7 @@ const Contact: React.FC = () => {
     formdata.append("message", formData.message);
     formdata.append("viewed", false.toString());
     console.log(formdata);
-    const response = await fetch('http://localhost:2518/messages/send', {
+    const response = await fetch('https://ofsbe-production.up.railway.app/messages/send', {
       method: 'POST',
       body: formdata
     });
