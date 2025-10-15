@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { User, FileItem, UserStats, FileStats, AdminMessage, FileMeta, ContactForm } from '../types';
 import axios from 'axios';
 
-const API_BASE = "http://localhost:2518";
+const API_BASE = "https://ofsbe-production.up.railway.app";
 
 interface AdminContextType {
   users: User[];
