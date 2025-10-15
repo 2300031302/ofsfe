@@ -34,7 +34,7 @@ const PublicFiles: React.FC = () => {
         setUserExists(true);
 
         const res = await axios.get<FileMeta[]>(
-          `http://localhost:2518/files/username/${username}/files`,
+          `https://ofsbe-production.up.railway.app/files/username/${username}/files`,
           { params: { mail: user?.email } }
         );
 
