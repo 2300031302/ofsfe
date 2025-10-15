@@ -28,7 +28,7 @@ const PublicFileView: React.FC = () => {
       console.log("user email:",user?.email);
       
 
-      const access=await axios.get<boolean>(`http://localhost:2518/files/access/${fileId}`,{ params: { mail: user?.email } });
+      const access=await axios.get<boolean>(`https://ofsbe-production.up.railway.app/files/access/${fileId}`,{ params: { mail: user?.email } });
       if(access.data){
         setAccessDenied(false);
         console.log("Access granted", access);
@@ -37,7 +37,7 @@ const PublicFileView: React.FC = () => {
         setAccessDenied(true);
       }
 
-      axios.get<FileMeta>(`http://localhost:2518/files/${fileId}/meta`)
+      axios.get<FileMeta>(`https://ofsbe-production.up.railway.app/files/${fileId}/meta`)
         .then(response => {
           setFile(response.data);
           // If file is private and user is not the owner, require email
