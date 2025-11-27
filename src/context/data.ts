@@ -1,4 +1,4 @@
 import axios from "axios";
 
-const API_BASE = "https://ofsbe-production.up.railway.app";
+const API_BASE = "http://localhost:2518";
 
