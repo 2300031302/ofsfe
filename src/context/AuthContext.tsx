@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import axios from 'axios';
 import { User } from '../types';
 
-const API_BASE = "https://ofsbe-production.up.railway.app/users"; // your backend URL
+const API_BASE = "http://locahost:2518/users"; // your backend URL
 
 interface AuthContextType {
   user: User | null;
